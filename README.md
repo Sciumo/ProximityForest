@@ -10,7 +10,7 @@ Categories
 * Spatial Algorithms
 * Clustering
 * Indexing
-* Machien Vision
+* Machine Vision
 * Machine Learning
 
 License
@@ -35,6 +35,4 @@ Stephen O'Hara and Bruce A. Draper, "Scalable Action Recognition with a Subspace
 This source code is provided without warranty and is available under the GPL license. More commercially-friendly licenses may be available. Please contact Stephen O'Hara for license options.
 
 Please view the wiki on this site for installation instructions and examples on reproducing the results of the papers.
-
-ProximityForest Web Site
 
