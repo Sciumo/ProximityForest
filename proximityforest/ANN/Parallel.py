@@ -66,7 +66,8 @@ class ParallelProximityForest(pf.ProximityForest):
             print "...deletion operation failed."
             pass #likely the variables don't exist yet on remote nodes
         
-        funcName = dist_func.__name__
+        funcName = dist_func.func_name
+        
         for ci in cidxs:
             print "Creating new forest on node %d..."%ci
             forest = pf.ProximityForest(self.treeDistrib[ci], treeClass=treeClass, **kwargs)
