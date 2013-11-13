@@ -31,6 +31,9 @@ import os
 import cPickle
 import types
 
+
+    
+
 class ProximityTree(object):
     '''
     Base class for a tree which sorts elements based on a pair-wise distance function.
@@ -109,8 +112,17 @@ class ProximityTree(object):
         useful, for example, when looking at a node in the tree and wanting to know the majority
         label of the items (if you have a label), or for knowing the index number of each sample
         in the node.
+        @note: T must be hashable.
         '''
         assert self._typeCheck(T)
+        #Check if samples are hashable by testing the first
+        try:
+            hash( T )
+        except TypeError:
+            print "Error: The input data sample is not hashable."
+            print "If the samples are arrays or lists, try converting to tuples first."
+            return
+        
         if self.depth == self.maxdepth:
             raise ValueError("Bad Tree %s, Max Depth (%d) Reached"%(self.ID, self.maxdepth))
         
@@ -133,14 +145,26 @@ class ProximityTree(object):
         
     def addList(self, samples, labels, report_frac=0.01):
         '''
-    	Adds a list of samples to the proximity tree
+    	Adds a list of samples to the proximity tree.
     	@param samples: a list of samples
     	@param labels: a list of integer labels, this could be either a class indicator
     	or the id of the sample, depending on how the resulting tree will be used
     	@param report_frac: How often do you want feedback during the tree construction
     	process, in terms of progress. The default 0.01 means that there will be
     	progress information printed after every 1% of the data has been added.
+    	@note: The samples added to the forest should be hashable. This is important when
+    	performing KNN queries across the forest, where a set(...) operation is performed
+    	to remove duplicate answers. If you can't hash the sample, you can't do this.
     	'''
+        
+        #Check if samples are hashable by testing the first
+        try:
+            hash( samples[0] )
+        except TypeError:
+            print "Error: The input data samples are not hashable."
+            print "If the samples are arrays or lists, try converting to tuples first."
+            return
+        
         print "Randomizing order of input data..."
         idxs = scipy.random.permutation( len(samples) ) #shuffle order that we add samples to tree
         
@@ -429,6 +453,33 @@ class ProximityTree(object):
         else:
             return sorted_neighbors[0:K]
 
+class ProximityTree_Matrix(ProximityTree):
+    """
+    This is a subclass of ProximityTree that is designed
+    to work with Matrix data (2D numpy arrays) as input.
+    This is the suggested tree type for use with typical
+    feature-vector input.
+    
+    This tree is compatible with the distance functions defined
+    in scipy.spatial.distances.
+    """
+       
+    #TODO: This is not an efficient implementation. Instead, the structure needs to be reworked
+    # to allow for faster distance computations between the pivot and a set of other samples...
+    def addData(self, D, L=None):
+        """
+        Adds the samples from a data matrix to the index
+        @param D: The data matrix, samples are in rows, features are in columns
+        @type D: A 2D numpy ndarray.
+        @param L: A label vector, if None, the row index will be used instead.
+        @type L: A 1D numpy ndarray (vector), or a list.
+        """
+        if L is None:
+            L = range(D.shape[0])
+            
+        datalist = [ tuple(v) for v in D ]
+        self.addList(datalist, L)
+
         
 class ProximityForest(object):
     '''
@@ -525,9 +576,30 @@ class ProximityForest(object):
             print "Forest data saved to directory: %s"%str(d)
     
     def clear(self):
+        """
+        Clears the forest so that it is empty, consisting only of a set of root nodes.
+        """
         for tree in self.trees: tree.clear()
         
     def add(self, T, Label):
+        """
+        Adds sample to the forest.
+        @param T: A single sample to add to the forest.
+        @type T: Any hashable object appropriate for use with the forests' distance function
+        @param Label: An integer label for the sample, this is often either 1) an index that uniquely
+        identifies the sample, or 2) a classification label
+        @Note: For adding multiple samples to the forest, use the addList() method. Repeatedly adding
+        samples that are highly self-similar may yield unbalanced trees. addList() will randomize the
+        order that samples are added to the forest, which tends to improve quality.
+        """
+        #Check if samples are hashable by testing the first
+        try:
+            hash( T )
+        except TypeError:
+            print "Error: The input data sample is not hashable."
+            print "If the samples are arrays or lists, try converting to tuples first."
+            return
+        
         for tree in self.trees: tree.add(T, Label)
         
     def addList(self, samples, labels, report_frac = 0.01, build_log = None):
@@ -543,7 +615,16 @@ class ProximityForest(object):
     	to this file. This is helpful when using the iPython parallel version of
     	a forest, where the progress information from the remote nodes can't be displayed.
     	Specify None (default) to not log the build progress.
+    	@note: elements of samples list should be hashable
     	'''
+        #Check if samples are hashable by testing the first
+        try:
+            hash( samples[0] )
+        except TypeError:
+            print "Error: The input data samples are not hashable."
+            print "If the samples are arrays or lists, try converting to tuples first."
+            return
+        
         print "Randomizing order of input data..."
         idxs = scipy.random.permutation( len(samples) ) #shuffle order that we add samples to tree
         
@@ -597,6 +678,33 @@ class ProximityForest(object):
         KNNs = list(set(KNN_List))  #remove duplicates b/c many trees will return the same answer as closest, etc.
                 
         return sorted(KNNs)[0:K] #like this, if K=3: [ (d1,T1,L1), (d2,T2,L2), (d3,T3,L3)]  
+
+class ProximityForest_Matrix(ProximityForest):
+    """
+    Subclass of Proximity Forest designed for feature-matrix style input.
+    """
+    def __init__(self, N, trees=None, dist_func=None, **kwargs):
+        """
+        Constructor is essentially the same as the parent class (please reference
+        for additional documentation), but the treeClass is fixed as
+        ProximityTree_Matrix.
+        """
+        tc = ProximityTree_Matrix
+        ProximityForest.__init__(self, N, trees=trees, treeClass=tc, dist_func=dist_func, **kwargs)
+        
+    def addData(self, D, L=None):
+        """
+        Adds the samples from a data matrix to the index
+        @param D: The data matrix, samples are in rows, features are in columns
+        @type D: A 2D numpy ndarray.
+        @param L: A label vector, if None, the row index will be used instead.
+        @type L: A 1D numpy ndarray (vector), or a list.
+        """
+        if L is None:
+            L = range(D.shape[0])
+            
+        datalist = [ tuple(v) for v in D ]
+        self.addList(datalist, L)
 
 class ZeroMedianDistanceError(ValueError):
     pass
