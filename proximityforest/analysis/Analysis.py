@@ -251,10 +251,14 @@ class ProximityForestAnalysis:
         @return: Tuple (error_rate, confusions). Confusions is a list of pairs where a label
         mistake occurred [(pred,targ),....]. Confusion list can be used as input to showing
         a confusion matrix, such as with ConfusionMx() method of the Utility module.
+        @note: labels are assumed to be 0-based contiguous integers. I.e. The set of unique
+        labels is 0..(C-1) where C is the number of classes.
         '''
         confusions = []  #will be a list of pairs where a label mistake occurred [(pred,targ),(pred,targ),...]
         errors = 0
-        print "Computing Predictions..."
+        
+        print "Computing %d Predictions..."%len(labels)
+        total = len(labels)
         for idx,T in enumerate(samples):
             (predict, conf) = self.classifySample(T, numClasses, method=method, K=K)
             if predict != labels[idx]:
@@ -265,12 +269,16 @@ class ProximityForestAnalysis:
             else:
                 if verbose:
                     print "%d:\tHit! \tPred=%d\tTarget=%d\tConfidence=%f"%(idx,predict,labels[idx],conf)
-            if not verbose: print ".",
-            if not verbose and (idx+1)%50==0: print ""
+            
+            if not verbose:
+                print_progress(idx, total)
             sys.stdout.flush()
             
         if not verbose: print ""
         error_rate = errors*1.0 / len(labels)
+        
+        print "Error rate is %3.3f"%error_rate
+        
         return (error_rate, confusions)
         
 class ParallelProximityForestAnalysis(ProximityForestAnalysis): 
@@ -317,3 +325,21 @@ class ParallelProximityForestAnalysis(ProximityForestAnalysis):
         tmpList = dview['tmp']
         allNeighborhoods = [ nbrhd for sublist in tmpList for nbrhd in sublist ]
         return allNeighborhoods
+
+def print_progress(cur, total):
+    '''
+    This function can be called in a processing loop
+    to print out a progress indicator represented
+    by up to 10 lines of dots, where each line 
+    represents completion of 10% of the total iterations.
+    @param cur: The current value (integer) of the iteration/count.
+    @param total: The total number of iterations that must occur.
+    '''
+    one_line = 40 if total < 400 else round( total / 10.0 )
+    one_dot = 1 if one_line / 40.0 < 1 else round( one_line / 40.0)    
+    if (cur+1)%one_line == 0:
+        print ' [%d]'%(cur+1)
+    elif (cur+1)%one_dot == 0:
+        print '.',
+        sys.stdout.flush()    
+    if cur+1 == total: print ""

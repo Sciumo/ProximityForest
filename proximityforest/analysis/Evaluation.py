@@ -26,7 +26,7 @@ import math
 import cPickle
 import sys
 
-def confusionMatrix(cnfList, class_sizes):
+def confusionMatrix(cnfList, class_sizes, one_based=False):
     ''' Computes the confusion matrix given a list of confusers
     from an experimental result. Takes into account potential uneven
     class distribution.
@@ -35,23 +35,34 @@ def confusionMatrix(cnfList, class_sizes):
     The tuples are ordered (predicted, actual).
     @param class_sizes: A list of the size of each class. Length
     of list indicates total number of classes.
+    @param one_based: Class labels are assumed to be contiguous zero-based
+    integers. However, if your labels are instead 1-based, then set
+    this parameter to True. In which case, labels are assumed to be
+    contiguous starting from 1..N, instead of 0..N-1, where N is the
+    number of classes.
     '''
     numClasses = len(class_sizes)
-
+    classes = range(1,numClasses+1) if one_based else range(numClasses)
+    
     cfMatrix = np.zeros( (numClasses,numClasses) )
-    for classIdx in range(numClasses):
+    for classIdx in classes:
         bads = [p for (p,t) in cnfList if t == classIdx]
         #record the diag entry for this row
-        cfMatrix[classIdx,classIdx] = class_sizes[classIdx] - len(bads)
+        cf_idx = (classIdx-1) if one_based else classIdx
+        
+        cfMatrix[cf_idx,cf_idx] = class_sizes[cf_idx] - len(bads)
         #record the off-diagonal misses
         for b in bads:
-            cfMatrix[classIdx, b] += 1
+            cfMatrix[cf_idx, b] += 1
         #normalize row to a percentage
         for col in range(numClasses):
-            cfMatrix[classIdx,col] = cfMatrix[classIdx,col] / class_sizes[classIdx]
+            cfMatrix[cf_idx,col] = cfMatrix[cf_idx,col] / class_sizes[cf_idx]
      
     tmp = (cfMatrix * 10000).astype(int)
     cfMatrix = (tmp*1.0/100)
+    
+    print np.round_(cfMatrix, decimals=1)
+    
     return cfMatrix
 
 def latexMatrix(cfMx, rowlabels=None):
